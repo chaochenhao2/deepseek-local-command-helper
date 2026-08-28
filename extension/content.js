@@ -103,6 +103,7 @@
     const command = input.value.trim();
     if (!command) return;
 
+    clearOutput(); // 每次执行命令前清空结果框
     appendOutput("> " + command, "dslh-cmd");
     input.value = "";
     sendBtn.disabled = true;
@@ -138,8 +139,59 @@
             "dslh-dim"
           );
         }
+        // 自动把命令执行结果填入 DeepSeek 输入框，方便继续让 DeepSeek 分析
+        fillDeepSeekInput(formatResult(command, d));
       }
     );
+  }
+
+  // 把命令执行结果格式化为文本，便于填入 DeepSeek 输入框
+  function formatResult(command, d) {
+    const lines = [];
+    lines.push("> " + command);
+    if (d.error) {
+      lines.push("执行异常: " + d.error);
+    } else {
+      if (d.stdout && d.stdout.trim()) lines.push(d.stdout.replace(/\s+$/, ""));
+      if (d.stderr && d.stderr.trim())
+        lines.push("STDERR: " + d.stderr.replace(/\s+$/, ""));
+      lines.push("[退出码 " + d.returncode + " · 耗时 " + d.elapsed + "s]");
+    }
+    return lines.join("\n");
+  }
+
+  // 定位 DeepSeek 页面自己的输入框（textarea，placeholder 含“发送消息”）
+  function findDeepSeekInput() {
+    const tas = document.querySelectorAll("textarea");
+    for (const ta of tas) {
+      if (ta.isConnected && !ta.closest("#ds-local-helper-root")) {
+        const ph = ta.getAttribute("placeholder") || "";
+        if (ph.indexOf("发送消息") >= 0) return ta;
+      }
+    }
+    // 回退：取页面里面积最大的可见 textarea（排除我们扩展自己的输入框）
+    let best = null,
+      max = 0;
+    for (const ta of tas) {
+      if (!ta.isConnected || ta.closest("#ds-local-helper-root")) continue;
+      const area = ta.offsetWidth * ta.offsetHeight;
+      if (area > max) {
+        max = area;
+        best = ta;
+      }
+    }
+    return best;
+  }
+
+  // 填充 DeepSeek 输入框（兼容 React 受控 textarea）
+  function fillDeepSeekInput(text) {
+    const ta = findDeepSeekInput();
+    if (!ta) return;
+    const proto = Object.getPrototypeOf(ta);
+    const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+    if (setter) setter.call(ta, text);
+    ta.value = text;
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   // ---------------- 事件绑定 ----------------

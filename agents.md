@@ -17,6 +17,7 @@
 5. **安全**：命令由用户手动输入执行。若后续要接入不可信来源的命令，必须先做白名单/沙箱。
 6. **正文解析（`<command>` 提取）**：`content.js` 用 MutationObserver 监听新增的 `ds-message` 回复容器，排除思考容器后取正文，正则提取 `<command>...</command>` 填入输入框。思考容器按「内容特征」（textContent 以「已思考/深度思考」开头）定位，不依赖混淆 class——DeepSeek 改版时优先检查 `findMessageContainer` / `findThinkingContainer` 这两个函数是否仍命中。
 7. **调试手段**：浏览器自动化中 `browser_evaluate` 的沙箱**不支持函数定义与循环**（for/filter/IIFE 均返回 undefined），只能写多语句 + 最后一个表达式 + XPath（`document.evaluate`）；且 script 参数可直接传中文。扒 DOM 时遵循此限制。
+8. **结果回填与清空**：`sendCommand` 每次执行前调用 `clearOutput()` 清空结果框；执行完成后再调用 `fillDeepSeekInput(formatResult(...))` 把结果写入 DeepSeek 输入框。DeepSeek 输入框是 `textarea`（placeholder 含「发送消息」），由 `findDeepSeekInput` 定位，填充用原生 value setter + input 事件以兼容 React 受控组件。
 
 ## 常用命令
 
