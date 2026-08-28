@@ -419,9 +419,22 @@
     setTimeout(sendCommand, 50); // 等输入框 value 同步后再读取执行
   }
 
+  // 判断消息文本里是否存在思考标题特征
+  function hasThinkingText(el) {
+    const t = el.textContent || "";
+    return (
+      t.indexOf("已思考") >= 0 || t.indexOf("深度思考") >= 0
+    );
+  }
+
   // 扫描单条消息：排除思考 -> 提取 command -> 填充
   function scanMessage(msg) {
     if (msg.nodeType !== Node.ELEMENT_NODE) return;
+    // 若消息含思考标题特征、但此刻思考容器定位不到，说明可能仍在流式渲染（标题已现、容器未完整），
+    // 此时不提取，避免误抓思考里的 <command>；等消息稳定后再扫。
+    if (hasThinkingText(msg) && !findThinkingContainer(msg)) {
+      return;
+    }
     const bodyEl = cloneBody(msg);
     const cmds = extractCommands(bodyEl);
     if (cmds.length) {
@@ -429,12 +442,13 @@
     }
   }
 
-  // 节流扫描：流式输出会多次触发 Mutation，合并到一次 setTimeout 里统一处理
+  // 防抖扫描：AI 回复是流式的，多次触发 Mutation。每次新变化都重置计时器，
+  // 等消息「停止变化」一段时间后再统一扫描，避免在思考/正文尚未渲染完整时误抓中间态。
   const scanQueue = new Set();
   let scanTimer = null;
   function scheduleScan(msg) {
     scanQueue.add(msg);
-    if (scanTimer) return;
+    if (scanTimer) clearTimeout(scanTimer);
     scanTimer = setTimeout(() => {
       scanTimer = null;
       const list = Array.from(scanQueue);
@@ -442,7 +456,7 @@
       for (const m of list) {
         if (m.isConnected) scanMessage(m);
       }
-    }, 600);
+    }, 1200);
   }
 
   // 监听页面 DOM 变化，发现新增的 ds-message 回复即扫描

@@ -23,6 +23,7 @@
 8. **结果回填与清空**：`sendCommand` 每次执行前调用 `clearOutput()` 清空结果框；执行完成后再调用 `fillDeepSeekInput(formatResult(...))` 把结果写入 DeepSeek 输入框。DeepSeek 输入框是 `textarea`（placeholder 含「发送消息」），由 `findDeepSeekInput` 定位，填充用原生 value setter + input 事件以兼容 React 受控组件。
 9. **全自动模式**：**自动执行始终开启**——`fillInput` 填充命令后无条件 `setTimeout(sendCommand,50)` 执行。是否自动发送由面板「自动发送延迟(秒)」（`#dslh-delay`）决定：`getAutoDelay()` 留空/非法/负值返回 `null`（自动执行但**不自动发送**，只填入 DeepSeek 输入框），填数字则 `sendCommand` 回调里 `setTimeout(()=>clickDeepSeekSend(), delay*1000)` 延迟后自动发送。DeepSeek 发送按钮是 `[role="button"].ds-button--primary`（输入为空时带 `ds-button--disabled`），由 `findDeepSeekSendButton` / `clickDeepSeekSend` 定位点击。
 10. **提示词按钮**：面板「提示词」按钮（`#dslh-prompt`）点击后 `fillDeepSeekInput(AI_PROMPT)` 把协作协议提示词填入 DeepSeek 输入框。`AI_PROMPT` 常量内嵌在 `content.js` 顶部，**需与 `prompts/ai协作协议.md` 内容保持一致**——改提示词时两处都要同步。
+11. **思考内容误抓（重要）**：AI 回复是流式的，思考内容常含 `<command>`。若在思考尚未渲染完整时扫描，会把思考里的 command 误当正文。已做两层防护：① `scheduleScan` 改为**防抖**（每次变化重置计时，等消息「停止变化 1.2s」后才扫）；② `scanMessage` 里若消息含思考标题特征（`hasThinkingText`）但此刻思考容器定位不到（`findThinkingContainer(msg)` 返回 null，说明仍在流式渲染中间态），则跳过本次不提取。改版后若再出现思考 command 被误执行，优先检查这两处。
 
 ## 常用命令
 
