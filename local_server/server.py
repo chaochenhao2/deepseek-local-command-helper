@@ -77,21 +77,31 @@ class CommandHandler(BaseHTTPRequestHandler):
             return
 
         # ---- 执行命令 ----
+        # 说明：Windows 下 cmd.exe 的输出通常是 GBK(cp936)，而部分命令又输出 UTF-8。
+        # 因此以字节模式捕获，再按“UTF-8 优先、失败回退 GBK/CP1252”智能解码，
+        # 保证中文等非 ASCII 内容能正确回传到扩展。
+        def smart_decode(b):
+            if b is None:
+                return ""
+            for enc in ("utf-8", "gbk", "cp1252"):
+                try:
+                    return b.decode(enc)
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            return b.decode("utf-8", errors="replace")
+
         start = time.time()
         try:
             proc = subprocess.run(
                 command,
                 shell=True,                 # Windows 下经 cmd.exe 执行，兼容管道等语法
                 capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
                 timeout=timeout,
             )
             result = {
                 "ok": True,
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
+                "stdout": smart_decode(proc.stdout),
+                "stderr": smart_decode(proc.stderr),
                 "returncode": proc.returncode,
                 "elapsed": round(time.time() - start, 3),
             }

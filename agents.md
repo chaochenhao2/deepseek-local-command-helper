@@ -12,7 +12,7 @@
    - content script 直接 fetch localhost 会被页面 CORS 拦截，**必须**经 `background.js` 转发（依赖 `manifest.json` 的 `host_permissions`）。
    - 改动端口时，需**同时**修改：`server.py` 的 `--port` 默认值、`extension/content.js` 的 `SERVER_PORT`、`extension/background.js` 的 `DEFAULT_PORT`、README。
 2. **样式隔离**：`style.css` 全部使用 `dslh` 前缀（含 HTML id 前缀 `dslh-*`），避免与 chat.deepseek.com 原有样式冲突。新增样式请沿用该前缀。
-3. **执行语义**：`server.py` 用 `subprocess.run(..., shell=True)` 执行命令，Windows 下走 `cmd.exe`，因此支持管道（`|`）、重定向等语法。`encoding="utf-8", errors="replace"` 处理中文/乱码。
+3. **执行与编码**：`server.py` 用 `subprocess.run(..., shell=True)` 执行命令，Windows 下走 `cmd.exe`，因此支持管道（`|`）、重定向等语法。命令输出以字节捕获，用 `smart_decode` 按「UTF-8 优先、失败回退 GBK/CP1252」智能解码，保证中文正常显示。若将来遇到某命令仍乱码，优先扩展该解码逻辑。
 4. **只绑定本机**：服务器固定监听 `127.0.0.1`，勿改 host 到 `0.0.0.0`。该服务无鉴权且能执行任意命令，属高危能力。
 5. **安全**：命令由用户手动输入执行。若后续要接入不可信来源的命令，必须先做白名单/沙箱。
 
