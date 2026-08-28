@@ -451,6 +451,25 @@
       add(buf.split("\n")[0]); // raw 内联命令通常单行，取到换行为止
     });
 
+    // 通道C：代码块内容忍未闭合的 <command>（AI 常漏写 </command>，尤其深度思考模式）。
+    // 此时取 <command> 之后到行尾/代码块结束的内容作为命令。
+    bodyEl.querySelectorAll("pre, code").forEach((el) => {
+      const t = el.textContent || "";
+      let idx = t.indexOf("<command>");
+      while (idx >= 0) {
+        const rest = t.slice(idx + 9); // 跳过 "<command>"
+        const closeIdx = rest.indexOf("</command>");
+        if (closeIdx >= 0) {
+          add(rest.slice(0, closeIdx));
+        } else {
+          add(rest.split("\n")[0]); // 未闭合：取到行尾
+        }
+        const next = t.indexOf("<command>", idx + 9);
+        if (next <= idx) break;
+        idx = next;
+      }
+    });
+
     return cmds;
   }
 
