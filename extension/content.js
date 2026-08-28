@@ -409,12 +409,13 @@
   }
 
   // 从正文提取 <command> 命令。
+  // allowUnclosed 为 true 时才启用「未闭合」兜底提取（见通道C）。
   // 双通道原因（已实测）：`<command>` 在 HTML 里是空元素(void)，
   //   1) 若 AI 把它写在代码块里 → 被转义成文本 &lt;command&gt;，需用 textContent 正则匹配（配对完整）；
   //   2) 若 AI 把它写在普通段落里 → 浏览器渲染成空元素 <command></command>，</command> 结束标签被丢弃，
   //      命令内容落在 command 元素后面的文本节点里，需用 DOM 提取。
   // 加长度上限，避免正则匹配到「<command>」后很远才出现的「</command>」而误吞大段文字。
-  function extractCommands(bodyEl) {
+  function extractCommands(bodyEl, allowUnclosed) {
     const cmds = [];
     const seen = new Set();
     const MAX = 500;
@@ -451,24 +452,26 @@
       add(buf.split("\n")[0]); // raw 内联命令通常单行，取到换行为止
     });
 
-    // 通道C：代码块内容忍未闭合的 <command>（AI 常漏写 </command>，尤其深度思考模式）。
-    // 此时取 <command> 之后到行尾/代码块结束的内容作为命令。
-    bodyEl.querySelectorAll("pre, code").forEach((el) => {
-      const t = el.textContent || "";
-      let idx = t.indexOf("<command>");
-      while (idx >= 0) {
-        const rest = t.slice(idx + 9); // 跳过 "<command>"
-        const closeIdx = rest.indexOf("</command>");
-        if (closeIdx >= 0) {
-          add(rest.slice(0, closeIdx));
-        } else {
-          add(rest.split("\n")[0]); // 未闭合：取到行尾
+    // 通道C：仅在 allowUnclosed 时启用——代码块内容忍未闭合的 <command>（AI 漏写 </command> 时兜底）。
+    // 未闭合提取有风险（流式中途会抓到不完整命令），因此只在对消息稳定确认后调用。
+    if (allowUnclosed) {
+      bodyEl.querySelectorAll("pre, code").forEach((el) => {
+        const t = el.textContent || "";
+        let idx = t.indexOf("<command>");
+        while (idx >= 0) {
+          const rest = t.slice(idx + 9); // 跳过 "<command>"
+          const closeIdx = rest.indexOf("</command>");
+          if (closeIdx >= 0) {
+            add(rest.slice(0, closeIdx));
+          } else {
+            add(rest.split("\n")[0]); // 未闭合：取到行尾
+          }
+          const next = t.indexOf("<command>", idx + 9);
+          if (next <= idx) break;
+          idx = next;
         }
-        const next = t.indexOf("<command>", idx + 9);
-        if (next <= idx) break;
-        idx = next;
-      }
-    });
+      });
+    }
 
     return cmds;
   }
@@ -497,15 +500,48 @@
     );
   }
 
+  // 判断正文里是否有「未闭合」的 <command>（<command> 数量 > </command> 数量）
+  function hasUnclosedCommand(bodyEl) {
+    const t = bodyEl.textContent || "";
+    const open = t.split("<command>").length - 1;
+    const close = t.split("</command>").length - 1;
+    return open > close;
+  }
+
   // 扫描单条消息：排除思考 -> 提取 command -> 填充
   function scanMessage(msg) {
     if (msg.nodeType !== Node.ELEMENT_NODE) return;
-    // 由 scheduleScan 的防抖保证消息已稳定后再扫描，
-    // 因此这里直接排除思考容器（能定位则排除）并提取正文 command。
     const bodyEl = cloneBody(msg);
-    const cmds = extractCommands(bodyEl);
-    if (cmds.length) {
-      fillInput(cmds[cmds.length - 1]); // 取最后一条（流式输出时最新完整的一条）
+    // 第一遍：只提取「闭合」的 <command>...</command>（可靠，避免流式中途的不完整命令）
+    const closedCmds = extractCommands(bodyEl, false);
+    if (closedCmds.length) {
+      fillInput(closedCmds[closedCmds.length - 1]);
+      delete msg.dataset.dslhStable;
+      return;
+    }
+    // 没有闭合命令：可能是 AI 仍在流式输出，或漏写了 </command>
+    if (hasUnclosedCommand(bodyEl)) {
+      const t = (bodyEl.textContent || "").trim();
+      const prev = msg.dataset.dslhLastText || "";
+      if (t !== prev) {
+        // 文本仍在变化 → 命令可能还没写完，记录并延迟再扫（不执行不完整命令）
+        msg.dataset.dslhLastText = t;
+        delete msg.dataset.dslhStable;
+        scheduleScan(msg);
+        return;
+      }
+      // 文本与上次相同（暂时稳定）
+      if (!msg.dataset.dslhStable) {
+        // 第一轮稳定：再确认一轮，避免 AI 流式中途短暂暂停被误判为「写完」
+        msg.dataset.dslhStable = "1";
+        scheduleScan(msg);
+        return;
+      }
+      // 连续两轮文本稳定 → 确认 AI 已输出完成，且确实漏写了 </command>，用未闭合兜底提取
+      const cmds = extractCommands(bodyEl, true);
+      if (cmds.length) fillInput(cmds[cmds.length - 1]);
+      delete msg.dataset.dslhLastText;
+      delete msg.dataset.dslhStable;
     }
   }
 
