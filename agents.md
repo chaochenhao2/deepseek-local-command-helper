@@ -20,7 +20,7 @@
    - **再坑**：AI 会在正文里“提及 `<command>` 标签”一词（被转义成文本），与真正的 `<command>cmd</command>` 混在同一 textContent，导致正则从「提及处」一路吞到很远才出现的 `</command>`。修复：通道A 正则用 `[^<]{1,500}`（命令内容不含 `<`，遇下一个标签即停，避免跨标签吞段），并对「长度>120 且含中文」的内容判为解释文字丢弃——既容纳长代码型命令（`python -c "..."`），又排除中文解释误匹配。
 7. **调试手段**：浏览器自动化中 `browser_evaluate` 的沙箱**不支持函数定义与循环**（for/filter/IIFE 均返回 undefined），只能写多语句 + 最后一个表达式 + XPath（`document.evaluate`）；且 script 参数可直接传中文。扒 DOM 时遵循此限制。
 8. **结果回填与清空**：`sendCommand` 每次执行前调用 `clearOutput()` 清空结果框；执行完成后再调用 `fillDeepSeekInput(formatResult(...))` 把结果写入 DeepSeek 输入框。DeepSeek 输入框是 `textarea`（placeholder 含「发送消息」），由 `findDeepSeekInput` 定位，填充用原生 value setter + input 事件以兼容 React 受控组件。
-9. **全自动模式**：面板「自动发送延迟(秒)」输入框（`#dslh-delay`）。`getAutoDelay()` 返回秒数，留空/非法/负值返回 `null`（关闭）。开启时 `fillInput` 填充命令后 `setTimeout(sendCommand,50)` 自动执行；`sendCommand` 回调里 `setTimeout(()=>clickDeepSeekSend(), delay*1000)` 延迟后自动发送。DeepSeek 发送按钮是 `[role="button"].ds-button--primary`（输入为空时带 `ds-button--disabled`），由 `findDeepSeekSendButton` / `clickDeepSeekSend` 定位点击。
+9. **全自动模式**：**自动执行始终开启**——`fillInput` 填充命令后无条件 `setTimeout(sendCommand,50)` 执行。是否自动发送由面板「自动发送延迟(秒)」（`#dslh-delay`）决定：`getAutoDelay()` 留空/非法/负值返回 `null`（自动执行但**不自动发送**，只填入 DeepSeek 输入框），填数字则 `sendCommand` 回调里 `setTimeout(()=>clickDeepSeekSend(), delay*1000)` 延迟后自动发送。DeepSeek 发送按钮是 `[role="button"].ds-button--primary`（输入为空时带 `ds-button--disabled`），由 `findDeepSeekSendButton` / `clickDeepSeekSend` 定位点击。
 
 ## 常用命令
 

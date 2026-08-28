@@ -373,11 +373,8 @@
     panel.classList.remove("dslh-hidden");
     toggleBtn.classList.add("dslh-active");
     appendOutput("检测到 <command>，已自动填入命令: " + text, "dslh-cmd");
-    // 若启用了「自动发送延迟」，命令一填充就自动执行（无需手动点发送）
-    if (getAutoDelay() !== null) {
-      appendOutput("已开启自动执行，正在运行命令…", "dslh-dim");
-      setTimeout(sendCommand, 50); // 等输入框 value 同步后再读取执行
-    }
+    // 命令一填充就自动执行（无需手动点发送）；是否自动发送由「自动发送延迟」决定
+    setTimeout(sendCommand, 50); // 等输入框 value 同步后再读取执行
   }
 
   // 扫描单条消息：排除思考 -> 提取 command -> 填充
