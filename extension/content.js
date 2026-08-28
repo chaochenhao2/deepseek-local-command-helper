@@ -287,7 +287,7 @@
   function extractCommands(bodyEl) {
     const cmds = [];
     const seen = new Set();
-    const MAX = 200;
+    const MAX = 500;
 
     function add(c) {
       c = String(c || "").trim();
@@ -297,13 +297,18 @@
       }
     }
 
-    // 通道A：textContent 正则（覆盖代码块里被转义的配对形式）。
-    // 用 [^<]{1,120} 限定命令内容：不含 `<`（排除正文里“提及 <command> 标签”导致的嵌套/长段误匹配），
-    // 且长度 1~120（正常命令不会太长，避免吞大段文字）。
+    // 通道A：textContent 正则（覆盖被转义成 &lt;command&gt; 的配对形式）。
+    // [^<]{1,500}：命令内容不含 `<`（从而遇到下一个 <command> 标签即停止，避免跨标签吞长段），
+    // 上限放宽到 500 以容纳较长的代码型命令（如 python -c "..."）。
     const text = bodyEl.textContent || "";
-    const re = /<command>([^<]{1,120}?)<\/command>/gi;
+    const re = /<command>([^<]{1,500}?)<\/command>/gi;
     let m;
-    while ((m = re.exec(text))) add(m[1]);
+    while ((m = re.exec(text))) {
+      const c = m[1].trim();
+      // 长且含中文 → 判为正文里的解释文字（提及 <command> 标签），丢弃
+      if (c.length > 120 && /[\u4e00-\u9fa5]/.test(c)) continue;
+      add(c);
+    }
 
     // 通道B：raw void 元素（<command> 渲染成空元素，命令内容在其后文本节点）
     bodyEl.querySelectorAll("command").forEach((com) => {
