@@ -312,6 +312,16 @@
     return null;
   }
 
+  // 判断是否 AI 回复（assistant），用于过滤掉用户消息。
+  // 实测：AI 回复的 ds-message class 以 "ds-message" 开头；用户消息 class 带 hash 前缀（如 "d29f3d7d"）。
+  // 兜底：含思考标题（已思考/深度思考）的必是 AI 回复（思考只属于 AI）。
+  function isAssistantMessage(msg) {
+    const cls = (typeof msg.className === "string" ? msg.className : "").trim();
+    if (cls.indexOf("ds-message") === 0) return true;
+    if (hasThinkingText(msg)) return true;
+    return false;
+  }
+
   // 在消息容器内找到「已思考 / 深度思考」标题元素
   function findTitleEl(msgEl) {
     const walker = document.createTreeWalker(
@@ -466,7 +476,8 @@
         for (const node of mut.addedNodes) {
           if (node.nodeType !== Node.ELEMENT_NODE) continue;
           const msg = findMessageContainer(node);
-          if (msg) scheduleScan(msg);
+          // 只扫描 AI 回复，过滤用户消息（用户消息里的 <command> 不需要解析执行）
+          if (msg && isAssistantMessage(msg)) scheduleScan(msg);
         }
       }
     });
