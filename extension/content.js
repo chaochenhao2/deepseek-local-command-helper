@@ -270,30 +270,50 @@
     return candidate;
   }
 
-  // 提取正文 HTML（排除思考容器）
-  function extractBody(msgEl) {
+  // 返回「排除思考容器后的克隆消息节点」
+  function cloneBody(msgEl) {
     const clone = msgEl.cloneNode(true);
     const think = findThinkingContainer(clone);
     if (think) think.remove();
-    return clone.innerHTML || "";
+    return clone;
   }
 
-  // 从正文 HTML 解析出所有 <command>...</command>（先做 HTML 反转义，兼容被转义成文本的情况）
-  function parseCommands(bodyHTML) {
-    const html = bodyHTML
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&amp;/g, "&")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
+  // 从正文提取 <command> 命令。
+  // 双通道原因（已实测）：`<command>` 在 HTML 里是空元素(void)，
+  //   1) 若 AI 把它写在代码块里 → 被转义成文本 &lt;command&gt;，需用 textContent 正则匹配（配对完整）；
+  //   2) 若 AI 把它写在普通段落里 → 浏览器渲染成空元素 <command></command>，</command> 结束标签被丢弃，
+  //      命令内容落在 command 元素后面的文本节点里，需用 DOM 提取。
+  // 加长度上限，避免正则匹配到「<command>」后很远才出现的「</command>」而误吞大段文字。
+  function extractCommands(bodyEl) {
     const cmds = [];
+    const seen = new Set();
+    const MAX = 200;
+
+    function add(c) {
+      c = String(c || "").trim();
+      if (c && c.length <= MAX && !seen.has(c)) {
+        seen.add(c);
+        cmds.push(c);
+      }
+    }
+
+    // 通道A：textContent 正则（覆盖代码块里被转义的配对形式）
+    const text = bodyEl.textContent || "";
     const re = /<command>([\s\S]*?)<\/command>/gi;
     let m;
-    while ((m = re.exec(html))) {
-      // 去掉 command 内部可能残留的 HTML 标签，取纯文本
-      const clean = m[1].replace(/<[^>]*>/g, "").trim();
-      if (clean) cmds.push(clean);
-    }
+    while ((m = re.exec(text))) add(m[1]);
+
+    // 通道B：raw void 元素（<command> 渲染成空元素，命令内容在其后文本节点）
+    bodyEl.querySelectorAll("command").forEach((com) => {
+      let n = com.nextSibling;
+      let buf = "";
+      while (n && n.nodeType === Node.TEXT_NODE) {
+        buf += n.textContent;
+        n = n.nextSibling;
+      }
+      add(buf.split("\n")[0]); // raw 内联命令通常单行，取到换行为止
+    });
+
     return cmds;
   }
 
@@ -311,11 +331,11 @@
     appendOutput("检测到 <command>，已自动填入命令: " + text, "dslh-cmd");
   }
 
-  // 扫描单条消息：提取正文 -> 解析 command -> 填充
+  // 扫描单条消息：排除思考 -> 提取 command -> 填充
   function scanMessage(msg) {
     if (msg.nodeType !== Node.ELEMENT_NODE) return;
-    const body = extractBody(msg);
-    const cmds = parseCommands(body);
+    const bodyEl = cloneBody(msg);
+    const cmds = extractCommands(bodyEl);
     if (cmds.length) {
       fillInput(cmds[cmds.length - 1]); // 取最后一条（流式输出时最新完整的一条）
     }
