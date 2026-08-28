@@ -39,6 +39,10 @@
           <button id="dslh-close" type="button" title="关闭">×</button>
         </div>
         <textarea id="dslh-input" placeholder="输入 shell 命令，例如：dir&#10;或 python -c \"print(1+1)\"&#10;回车发送，Shift+回车换行"></textarea>
+        <div class="dslh-delay-row">
+          <label for="dslh-delay" title="开启自动执行与自动发送；结果将在延迟秒数后自动发送给 DeepSeek（0 立即发送，留空关闭自动）">自动发送延迟(秒)</label>
+          <input id="dslh-delay" type="number" min="0" max="60" step="1" placeholder="留空关闭" title="开启自动执行与自动发送；结果将在延迟秒数后自动发送给 DeepSeek（0 立即发送，留空关闭自动）">
+        </div>
         <div class="dslh-actions">
           <button id="dslh-send" type="button">发送</button>
         </div>
@@ -55,6 +59,7 @@
   const closeBtn = root.querySelector("#dslh-close");
   const input = root.querySelector("#dslh-input");
   const sendBtn = root.querySelector("#dslh-send");
+  const delayInput = root.querySelector("#dslh-delay");
   const output = root.querySelector("#dslh-output");
   const statusEl = root.querySelector("#dslh-status");
 
@@ -141,8 +146,40 @@
         }
         // 自动把命令执行结果填入 DeepSeek 输入框，方便继续让 DeepSeek 分析
         fillDeepSeekInput(formatResult(command, d));
+        // 若启用了「自动发送延迟」，等待延迟秒数后点击 DeepSeek 发送按钮
+        const autoDelay = getAutoDelay();
+        if (autoDelay !== null) {
+          appendOutput(`自动发送将于 ${autoDelay}s 后进行…`, "dslh-dim");
+          setTimeout(() => {
+            if (!clickDeepSeekSend()) {
+              appendOutput("自动发送失败：未找到可用的发送按钮", "dslh-err");
+            }
+          }, autoDelay * 1000);
+        }
       }
     );
+  }
+
+  // 读取「自动发送延迟」：返回秒数；留空/非法/负值返回 null（关闭自动）
+  function getAutoDelay() {
+    const v = delayInput ? delayInput.value : "";
+    if (v === "" || v == null) return null;
+    const n = Number(v);
+    if (isNaN(n) || n < 0) return null;
+    return n;
+  }
+
+  // 定位并点击 DeepSeek 页面的发送按钮（class 含 ds-button--primary 的 role=button）
+  function findDeepSeekSendButton() {
+    return document.querySelector('[role="button"].ds-button--primary');
+  }
+  function clickDeepSeekSend() {
+    const btn = findDeepSeekSendButton();
+    if (btn && !btn.classList.contains("ds-button--disabled")) {
+      btn.click();
+      return true;
+    }
+    return false;
   }
 
   // 把命令执行结果格式化为文本，便于填入 DeepSeek 输入框
@@ -336,6 +373,11 @@
     panel.classList.remove("dslh-hidden");
     toggleBtn.classList.add("dslh-active");
     appendOutput("检测到 <command>，已自动填入命令: " + text, "dslh-cmd");
+    // 若启用了「自动发送延迟」，命令一填充就自动执行（无需手动点发送）
+    if (getAutoDelay() !== null) {
+      appendOutput("已开启自动执行，正在运行命令…", "dslh-dim");
+      setTimeout(sendCommand, 50); // 等输入框 value 同步后再读取执行
+    }
   }
 
   // 扫描单条消息：排除思考 -> 提取 command -> 填充

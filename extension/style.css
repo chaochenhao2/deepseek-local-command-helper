@@ -96,6 +96,27 @@
 }
 #dslh-input:focus { border-color: #6d7cff; }
 
+.dslh-delay-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 8px;
+  font-size: 11px;
+  color: #b0b0c0;
+}
+.dslh-delay-row label { white-space: nowrap; }
+#dslh-delay {
+  width: 72px;
+  padding: 4px 8px;
+  border: 1px solid rgba(120, 120, 140, 0.35);
+  border-radius: 6px;
+  background: #10101a;
+  color: #e8e8f0;
+  font-size: 12px;
+  outline: none;
+}
+#dslh-delay:focus { border-color: #6d7cff; }
+
 .dslh-actions {
   display: flex;
   justify-content: flex-end;
