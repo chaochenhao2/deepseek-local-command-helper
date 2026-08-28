@@ -1,0 +1,137 @@
+/* DeepSeek 本地命令助手 - 注入样式 */
+/* 使用 dslh 前缀，避免与 chat.deepseek.com 原有样式冲突 */
+
+#dslh-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 2147483000;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid rgba(120, 120, 140, 0.35);
+  border-radius: 8px;
+  background: #1f1f2b;
+  color: #e8e8f0;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  transition: background 0.15s, transform 0.05s;
+}
+#dslh-toggle:hover { background: #2a2a3a; }
+#dslh-toggle:active { transform: scale(0.96); }
+#dslh-toggle.dslh-active { background: #3a3a5a; }
+
+#dslh-toggle .dslh-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+#dslh-panel {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  z-index: 2147483001;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(120, 120, 140, 0.35);
+  border-radius: 12px;
+  background: #1a1a26;
+  color: #e8e8f0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+#dslh-panel.dslh-hidden { display: none; }
+
+.dslh-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(120, 120, 140, 0.2);
+  font-weight: 600;
+  background: #22222f;
+}
+.dslh-header .dslh-status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: #f87171;
+}
+.dslh-header .dslh-status.dslh-online { color: #4ade80; }
+#dslh-close {
+  border: none;
+  background: transparent;
+  color: #b0b0c0;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+#dslh-close:hover { color: #fff; }
+
+#dslh-input {
+  margin: 10px 12px;
+  padding: 8px 10px;
+  min-height: 56px;
+  resize: vertical;
+  border: 1px solid rgba(120, 120, 140, 0.35);
+  border-radius: 8px;
+  background: #10101a;
+  color: #e8e8f0;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+#dslh-input:focus { border-color: #6d7cff; }
+
+.dslh-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 12px 10px;
+}
+#dslh-send {
+  border: none;
+  border-radius: 8px;
+  padding: 7px 16px;
+  background: #5a6bff;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#dslh-send:hover { background: #6d7cff; }
+#dslh-send:disabled { background: #4a4a5a; cursor: not-allowed; }
+
+#dslh-output {
+  margin: 0;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(120, 120, 140, 0.2);
+  min-height: 120px;
+  max-height: 30vh;
+  overflow: auto;
+  background: #10101a;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+.dslh-output .dslh-placeholder { color: #6a6a7a; }
+.dslh-output .dslh-line { margin: 2px 0; }
+.dslh-output .dslh-cmd { color: #82b1ff; font-weight: 600; }
+.dslh-output .dslh-out { color: #d6e6ff; }
+.dslh-output .dslh-err { color: #ff8a8a; }
+.dslh-output .dslh-dim { color: #7a7a8a; font-size: 11px; }
