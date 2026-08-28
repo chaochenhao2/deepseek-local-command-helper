@@ -38,14 +38,19 @@
    - 一次只输出一个 <command>，不要并列多个；
    - 命令标签尽量放在回复末尾单独一行，标签前后不要夹杂过长解释文字；
    - 标签内只放纯命令本身，不要放解释、注释或多余符号；
+   - 命令内只使用英文半角字符，禁止全角或数学符号（如 −、∗、′、”、（）、＆），必须用 ASCII 的 - * ' " & 等；
    - 需要执行较复杂的多行代码时，用一行命令的形式，例如：
      <command>python -c "import urllib.request, json; print('ok')"</command>
+     或是使用多条命令，比如：
+     <command>xxxx</command>
+     等工具回复后：
+     <command>xxxxx</command>
    - 如果你只是"提到"<command>这个标签（不是在让我执行命令），请不要使用成对的 <command>...</command> 格式，以免被误执行。
 
 4. 安全提醒：
    - 只输出无害、明确的命令；
-   - 涉及删除、格式化、改系统设置等危险操作前，先询问我；
-   - 不确定的命令不要自动让我执行。
+   - 涉及删除等危险操作前，先询问我；
+   - 你每次对话都只能输出一对标签，如果需要多个命令，请等待下次对话
 
 现在开始，请记住这套协议。如果我们接下来要协作，你可以在需要时输出 <command> 标签。`;
 
@@ -145,7 +150,7 @@
 
   // ---------------- 发送命令 ----------------
   async function sendCommand() {
-    const command = input.value.trim();
+    const command = normalizeCommand(input.value.trim()); // 归一化 Unicode 特殊符号
     if (!command) return;
 
     clearOutput(); // 每次执行命令前清空结果框
@@ -367,6 +372,38 @@
     return clone;
   }
 
+  // 命令字符归一化：LLM 常输出 Unicode 数学/全角符号（如 − U+2212、∗ U+2217、′ 全角引号），
+  // 这些在 cmd/PowerShell 里无法识别导致执行失败。统一转成 ASCII 等价字符。
+  function normalizeCommand(s) {
+    const map = {
+      "\u2212": "-", // MINUS SIGN −
+      "\uff0d": "-", // FULLWIDTH HYPHEN-MINUS －
+      "\u2217": "*", // ASTERISK OPERATOR ∗
+      "\u00d7": "*", // MULTIPLICATION SIGN ×
+      "\u2032": "'", // PRIME ′
+      "\u2019": "'", // RIGHT SINGLE QUOTATION ’
+      "\u2018": "'", // LEFT SINGLE QUOTATION ‘
+      "\u201c": '"', // LEFT DOUBLE QUOTATION “
+      "\u201d": '"', // RIGHT DOUBLE QUOTATION ”
+      "\uff06": "&", // FULLWIDTH AMPERSAND ＆
+      "\uff5c": "|", // FULLWIDTH VERTICAL BAR ｜
+      "\u3000": " ", // IDEOGRAPHIC SPACE
+      "\uff1e": ">", // ＞
+      "\uff1c": "<", // ＜
+      "\uff1d": "=", // ＝
+      "\uff08": "(", // （
+      "\uff09": ")", // ）
+      "\uff05": "%", // ％
+      "\uff04": "$", // ＄
+      "\uff0c": ",", // ，
+      "\uff1b": ";", // ；
+    };
+    return s.replace(
+      /[\u2212\uff0d\u2217\u00d7\u2032\u2019\u2018\u201c\u201d\uff06\uff5c\u3000\uff1e\uff1c\uff1d\uff08\uff09\uff05\uff04\uff0c\uff1b]/g,
+      (ch) => map[ch] || ch
+    );
+  }
+
   // 从正文提取 <command> 命令。
   // 双通道原因（已实测）：`<command>` 在 HTML 里是空元素(void)，
   //   1) 若 AI 把它写在代码块里 → 被转义成文本 &lt;command&gt;，需用 textContent 正则匹配（配对完整）；
@@ -379,7 +416,7 @@
     const MAX = 500;
 
     function add(c) {
-      c = String(c || "").trim();
+      c = normalizeCommand(String(c || "").trim());
       if (c && c.length <= MAX && !seen.has(c)) {
         seen.add(c);
         cmds.push(c);
