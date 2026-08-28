@@ -26,6 +26,7 @@
 11. **思考内容误抓（重要）**：AI 回复是流式的，思考内容常含 `<command>`。若在思考尚未渲染完整时扫描，会把思考里的 command 误当正文。已做两层防护：① `scheduleScan` 改为**防抖**（每次变化重置计时，等消息「停止变化 1.2s」后才扫）；② `scanMessage` 里若消息含思考标题特征（`hasThinkingText`）但此刻思考容器定位不到（`findThinkingContainer(msg)` 返回 null，说明仍在流式渲染中间态），则跳过本次不提取。改版后若再出现思考 command 被误执行，优先检查这两处。
 12. **用户消息过滤**：只解析 AI 回复，不解析用户消息。`isAssistantMessage(msg)` 判断：AI 回复的 `ds-message` class 以 `ds-message` 开头，用户消息 class 带 hash 前缀（如 `d29f3d7d`）；兜底是含思考标题的必为 AI。`installWatcher` 里只对 AI 消息 `scheduleScan`。
 13. **命令字符归一化**：LLM 常输出 Unicode 数学/全角符号（− U+2212、∗ U+2217、′ 全角引号等），cmd/PowerShell 无法识别导致执行失败（如 `Get−WmiObject`）。`normalizeCommand(s)` 把这些符号统一转成 ASCII（−→-、∗→*、全角引号/括号→半角等），在 `extractCommands` 的 `add()` 和 `sendCommand` 入口都调用。若遇到新的执行失败，优先检查 AI 命令里是否有未覆盖的 Unicode 符号，往 `normalizeCommand` 的 map 里补。
+14. **`$` 被公式渲染破坏（重要）**：DeepSeek 页面支持数学公式渲染（`$...$`），PowerShell 命令里的 `$` 会被当成公式边界解析，导致 `$d` 变 `d`、空格丢失、命令错乱——**且信息在渲染层已丢失，无法在扩展端恢复**。因此协作协议要求 AI 输出含 `$` 的命令时**避免 `$` 变量、写成单条表达式**（如 `powershell -command "[math]::Round(((Get-PSDrive C).Used/((Get-PSDrive C).Used+(Get-PSDrive C).Free))*100,2)"`）。扩展端 `normalizeCommand` 无法解决此问题，只能靠提示词规避。
 
 ## 常用命令
 
