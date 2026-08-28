@@ -24,6 +24,31 @@
 
   const SERVER_PORT = 8765; // 与本地 server.py 端口一致
 
+  // 「AI 协作协议」初始提示词（与 prompts/ai协作协议.md 保持一致）
+  const AI_PROMPT = `【系统协作协议】
+
+你在与我协作完成本地任务。有一套特殊机制：
+
+1. 当你需要我在本地执行命令时，请把命令放进这样的标签里：
+   <command>这里写命令</command>
+
+2. 标签内的内容会被我原样提取并作为 Shell 命令在本机自动执行（Windows/cmd 环境），执行结果会自动回传给你继续分析。
+
+3. 为了确保解析准确，请遵守以下格式规范：
+   - 一次只输出一个 <command>，不要并列多个；
+   - 命令标签尽量放在回复末尾单独一行，标签前后不要夹杂过长解释文字；
+   - 标签内只放纯命令本身，不要放解释、注释或多余符号；
+   - 需要执行较复杂的多行代码时，用一行命令的形式，例如：
+     <command>python -c "import urllib.request, json; print('ok')"</command>
+   - 如果你只是"提到"<command>这个标签（不是在让我执行命令），请不要使用成对的 <command>...</command> 格式，以免被误执行。
+
+4. 安全提醒：
+   - 只输出无害、明确的命令；
+   - 涉及删除、格式化、改系统设置等危险操作前，先询问我；
+   - 不确定的命令不要自动让我执行。
+
+现在开始，请记住这套协议。如果我们接下来要协作，你可以在需要时输出 <command> 标签。`;
+
   // ---------------- 创建 UI ----------------
   function buildUI() {
     const root = document.createElement("div");
@@ -44,6 +69,7 @@
           <input id="dslh-delay" type="number" min="0" max="60" step="1" placeholder="留空关闭" title="开启自动执行与自动发送；结果将在延迟秒数后自动发送给 DeepSeek（0 立即发送，留空关闭自动）">
         </div>
         <div class="dslh-actions">
+          <button id="dslh-prompt" type="button" title="把「AI 协作协议」初始提示词填入 DeepSeek 输入框">提示词</button>
           <button id="dslh-send" type="button">发送</button>
         </div>
         <pre id="dslh-output" class="dslh-output"><span class="dslh-placeholder">命令执行结果将显示在这里…</span></pre>
@@ -59,6 +85,7 @@
   const closeBtn = root.querySelector("#dslh-close");
   const input = root.querySelector("#dslh-input");
   const sendBtn = root.querySelector("#dslh-send");
+  const promptBtn = root.querySelector("#dslh-prompt");
   const delayInput = root.querySelector("#dslh-delay");
   const output = root.querySelector("#dslh-output");
   const statusEl = root.querySelector("#dslh-status");
@@ -254,6 +281,11 @@
   });
 
   sendBtn.addEventListener("click", sendCommand);
+
+  promptBtn.addEventListener("click", () => {
+    fillDeepSeekInput(AI_PROMPT);
+    appendOutput("已把「AI 协作协议」提示词填入 DeepSeek 输入框，可发送给 AI", "dslh-cmd");
+  });
 
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {

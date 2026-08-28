@@ -22,6 +22,7 @@
    - **"Extension context invalidated"**：开发中每次在扩展管理页点「重新加载」后，已打开的 DeepSeek 页面上残留的旧 content script 的 `chrome.runtime` 上下文会失效，再调用就抛此未捕获异常。这是正常现象，**刷新页面即可**。代码侧已用 `sendToBackground` 统一包装所有 `chrome.runtime.sendMessage`，捕获该异常并返回友好提示（"扩展已更新，请刷新本页后重试"），避免刷屏报错。以后新增任何 `chrome.runtime` 调用都应走 `sendToBackground`。
 8. **结果回填与清空**：`sendCommand` 每次执行前调用 `clearOutput()` 清空结果框；执行完成后再调用 `fillDeepSeekInput(formatResult(...))` 把结果写入 DeepSeek 输入框。DeepSeek 输入框是 `textarea`（placeholder 含「发送消息」），由 `findDeepSeekInput` 定位，填充用原生 value setter + input 事件以兼容 React 受控组件。
 9. **全自动模式**：**自动执行始终开启**——`fillInput` 填充命令后无条件 `setTimeout(sendCommand,50)` 执行。是否自动发送由面板「自动发送延迟(秒)」（`#dslh-delay`）决定：`getAutoDelay()` 留空/非法/负值返回 `null`（自动执行但**不自动发送**，只填入 DeepSeek 输入框），填数字则 `sendCommand` 回调里 `setTimeout(()=>clickDeepSeekSend(), delay*1000)` 延迟后自动发送。DeepSeek 发送按钮是 `[role="button"].ds-button--primary`（输入为空时带 `ds-button--disabled`），由 `findDeepSeekSendButton` / `clickDeepSeekSend` 定位点击。
+10. **提示词按钮**：面板「提示词」按钮（`#dslh-prompt`）点击后 `fillDeepSeekInput(AI_PROMPT)` 把协作协议提示词填入 DeepSeek 输入框。`AI_PROMPT` 常量内嵌在 `content.js` 顶部，**需与 `prompts/ai协作协议.md` 内容保持一致**——改提示词时两处都要同步。
 
 ## 常用命令
 
