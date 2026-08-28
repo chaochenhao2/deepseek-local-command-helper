@@ -163,5 +163,142 @@
     }
   });
 
+  // ---------------- 解析 DeepSeek 返回内容，提取 <command> 填充输入框 ----------------
+  // 结构（实测 chat.deepseek.com）：
+  //   ds-message 容器（class 含 "ds-message"）= 一条 AI 回复
+  //   其内思考容器：以「已思考 / 深度思考」文本开头、位于消息容器内的最外层块
+  //   正文 = 消息容器去掉思考容器后的内容
+  // 说明：思考容器按「内容特征」定位，不依赖具体混淆 class，便于 DeepSeek 改版后仍可用。
+
+  // 从某节点向上找 ds-message 容器
+  function findMessageContainer(node) {
+    let el = node;
+    while (el && el !== document.body) {
+      const cls = typeof el.className === "string" ? el.className : "";
+      if (cls.split(/\s+/).indexOf("ds-message") >= 0) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  // 在消息容器内找到「已思考 / 深度思考」标题元素
+  function findTitleEl(msgEl) {
+    const walker = document.createTreeWalker(
+      msgEl,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+    let n;
+    while ((n = walker.nextNode())) {
+      const t = n.textContent || "";
+      if (t.indexOf("已思考") >= 0 || t.indexOf("深度思考") >= 0) {
+        return n.parentElement;
+      }
+    }
+    return null;
+  }
+
+  // 定位思考容器：标题向上，取「textContent 以思考标题开头」且位于消息容器内的最外层容器
+  function findThinkingContainer(msgEl) {
+    const titleEl = findTitleEl(msgEl);
+    if (!titleEl) return null;
+    let el = titleEl.parentElement;
+    let candidate = null;
+    while (el && el !== msgEl) {
+      const t = (el.textContent || "").trim();
+      if (
+        t.startsWith("已思考") ||
+        t.startsWith("深度思考") ||
+        t.startsWith("已深度思考")
+      ) {
+        candidate = el;
+      }
+      el = el.parentElement;
+    }
+    return candidate;
+  }
+
+  // 提取正文 HTML（排除思考容器）
+  function extractBody(msgEl) {
+    const clone = msgEl.cloneNode(true);
+    const think = findThinkingContainer(clone);
+    if (think) think.remove();
+    return clone.innerHTML || "";
+  }
+
+  // 从正文 HTML 解析出所有 <command>...</command>（先做 HTML 反转义，兼容被转义成文本的情况）
+  function parseCommands(bodyHTML) {
+    const html = bodyHTML
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    const cmds = [];
+    const re = /<command>([\s\S]*?)<\/command>/gi;
+    let m;
+    while ((m = re.exec(html))) {
+      // 去掉 command 内部可能残留的 HTML 标签，取纯文本
+      const clean = m[1].replace(/<[^>]*>/g, "").trim();
+      if (clean) cmds.push(clean);
+    }
+    return cmds;
+  }
+
+  // 填充输入框（兼容 React 受控 textarea）
+  function fillInput(text) {
+    if (input.value === text) return;
+    const proto = Object.getPrototypeOf(input);
+    const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+    if (setter) setter.call(input, text);
+    input.value = text;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    // 自动打开面板，方便用户看到已填充内容
+    panel.classList.remove("dslh-hidden");
+    toggleBtn.classList.add("dslh-active");
+    appendOutput("检测到 <command>，已自动填入命令: " + text, "dslh-cmd");
+  }
+
+  // 扫描单条消息：提取正文 -> 解析 command -> 填充
+  function scanMessage(msg) {
+    if (msg.nodeType !== Node.ELEMENT_NODE) return;
+    const body = extractBody(msg);
+    const cmds = parseCommands(body);
+    if (cmds.length) {
+      fillInput(cmds[cmds.length - 1]); // 取最后一条（流式输出时最新完整的一条）
+    }
+  }
+
+  // 节流扫描：流式输出会多次触发 Mutation，合并到一次 setTimeout 里统一处理
+  const scanQueue = new Set();
+  let scanTimer = null;
+  function scheduleScan(msg) {
+    scanQueue.add(msg);
+    if (scanTimer) return;
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      const list = Array.from(scanQueue);
+      scanQueue.clear();
+      for (const m of list) {
+        if (m.isConnected) scanMessage(m);
+      }
+    }, 600);
+  }
+
+  // 监听页面 DOM 变化，发现新增的 ds-message 回复即扫描
+  function installWatcher() {
+    const observer = new MutationObserver((mutations) => {
+      for (const mut of mutations) {
+        for (const node of mut.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          const msg = findMessageContainer(node);
+          if (msg) scheduleScan(msg);
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+  installWatcher();
+
   checkHealth();
 })();
