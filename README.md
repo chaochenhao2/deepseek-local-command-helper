@@ -53,6 +53,8 @@ python server.py                # 默认 127.0.0.1:8765
 2. 打开右上角「开发人员模式」。
 3. 点击「加载解压缩的扩展」，选择本项目的 `extension` 文件夹。
 
+> 开发提示：每次在扩展管理页点「重新加载」后，**已打开的 DeepSeek 页面需刷新一次**才会应用新代码（否则会报 `Extension context invalidated`，刷新即恢复）。
+
 ### 3. 使用
 
 1. 访问 `https://chat.deepseek.com`。

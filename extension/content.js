@@ -85,26 +85,39 @@
       '<span class="dslh-placeholder">命令执行结果将显示在这里…</span>';
   }
 
-  // ---------------- 健康检查（页面加载时探测一次） ----------------
-  function checkHealth() {
-    chrome.runtime.sendMessage(
-      { type: "exec", command: "echo __pong__", port: SERVER_PORT, timeout: 5 },
-      (resp) => {
-        if (chrome.runtime.lastError) {
-          setStatus("● 未连接", false);
-          return;
-        }
-        if (resp && resp.ok) {
-          setStatus("● 已连接", true);
-        } else {
-          setStatus("● 未连接", false);
-        }
+  // 安全发送消息到 background。
+  // 扩展在开发中被「重新加载」后，旧页面上残留的 content script 的 chrome.runtime
+  // 上下文会失效（报 "Extension context invalidated"）。这里统一捕获，避免未捕获异常，
+  // 并返回友好错误提示用户刷新页面。
+  function sendToBackground(msg) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(msg, (resp) => {
+          if (chrome.runtime.lastError) {
+            resolve({ ok: false, error: chrome.runtime.lastError.message });
+            return;
+          }
+          resolve(resp);
+        });
+      } catch (e) {
+        resolve({ ok: false, error: "扩展已更新，请刷新本页后重试" });
       }
-    );
+    });
+  }
+
+  // ---------------- 健康检查（页面加载时探测一次） ----------------
+  async function checkHealth() {
+    const resp = await sendToBackground({
+      type: "exec",
+      command: "echo __pong__",
+      port: SERVER_PORT,
+      timeout: 5,
+    });
+    setStatus(resp && resp.ok ? "● 已连接" : "● 未连接", !!(resp && resp.ok));
   }
 
   // ---------------- 发送命令 ----------------
-  function sendCommand() {
+  async function sendCommand() {
     const command = input.value.trim();
     if (!command) return;
 
@@ -114,50 +127,47 @@
     sendBtn.disabled = true;
     sendBtn.textContent = "执行中…";
 
-    chrome.runtime.sendMessage(
-      { type: "exec", command: command, port: SERVER_PORT, timeout: 60 },
-      (resp) => {
-        sendBtn.disabled = false;
-        sendBtn.textContent = "发送";
+    const resp = await sendToBackground({
+      type: "exec",
+      command: command,
+      port: SERVER_PORT,
+      timeout: 60,
+    });
+    sendBtn.disabled = false;
+    sendBtn.textContent = "发送";
 
-        if (chrome.runtime.lastError) {
-          appendOutput("扩展错误: " + chrome.runtime.lastError.message, "dslh-err");
-          return;
-        }
-        if (!resp || !resp.ok) {
-          appendOutput((resp && resp.error) || "未知错误", "dslh-err");
-          setStatus("● 未连接", false);
-          return;
-        }
+    if (!resp || !resp.ok) {
+      appendOutput((resp && resp.error) || "未知错误", "dslh-err");
+      setStatus("● 未连接", false);
+      return;
+    }
 
-        const d = resp.data;
-        if (d.error) {
-          appendOutput("执行异常: " + d.error, "dslh-err");
-        } else {
-          const out = (d.stdout || "").trim();
-          const err = (d.stderr || "").trim();
-          if (out) appendOutput(out, "dslh-out");
-          if (err) appendOutput(err, "dslh-err");
-          if (!out && !err) appendOutput("(无输出)", "dslh-dim");
-          appendOutput(
-            `[退出码 ${d.returncode} · 耗时 ${d.elapsed}s]`,
-            "dslh-dim"
-          );
+    const d = resp.data;
+    if (d.error) {
+      appendOutput("执行异常: " + d.error, "dslh-err");
+    } else {
+      const out = (d.stdout || "").trim();
+      const err = (d.stderr || "").trim();
+      if (out) appendOutput(out, "dslh-out");
+      if (err) appendOutput(err, "dslh-err");
+      if (!out && !err) appendOutput("(无输出)", "dslh-dim");
+      appendOutput(
+        `[退出码 ${d.returncode} · 耗时 ${d.elapsed}s]`,
+        "dslh-dim"
+      );
+    }
+    // 自动把命令执行结果填入 DeepSeek 输入框，方便继续让 DeepSeek 分析
+    fillDeepSeekInput(formatResult(command, d));
+    // 若启用了「自动发送延迟」，等待延迟秒数后点击 DeepSeek 发送按钮
+    const autoDelay = getAutoDelay();
+    if (autoDelay !== null) {
+      appendOutput(`自动发送将于 ${autoDelay}s 后进行…`, "dslh-dim");
+      setTimeout(() => {
+        if (!clickDeepSeekSend()) {
+          appendOutput("自动发送失败：未找到可用的发送按钮", "dslh-err");
         }
-        // 自动把命令执行结果填入 DeepSeek 输入框，方便继续让 DeepSeek 分析
-        fillDeepSeekInput(formatResult(command, d));
-        // 若启用了「自动发送延迟」，等待延迟秒数后点击 DeepSeek 发送按钮
-        const autoDelay = getAutoDelay();
-        if (autoDelay !== null) {
-          appendOutput(`自动发送将于 ${autoDelay}s 后进行…`, "dslh-dim");
-          setTimeout(() => {
-            if (!clickDeepSeekSend()) {
-              appendOutput("自动发送失败：未找到可用的发送按钮", "dslh-err");
-            }
-          }, autoDelay * 1000);
-        }
-      }
-    );
+      }, autoDelay * 1000);
+    }
   }
 
   // 读取「自动发送延迟」：返回秒数；留空/非法/负值返回 null（关闭自动）
