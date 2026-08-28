@@ -481,11 +481,8 @@
   // 扫描单条消息：排除思考 -> 提取 command -> 填充
   function scanMessage(msg) {
     if (msg.nodeType !== Node.ELEMENT_NODE) return;
-    // 若消息含思考标题特征、但此刻思考容器定位不到，说明可能仍在流式渲染（标题已现、容器未完整），
-    // 此时不提取，避免误抓思考里的 <command>；等消息稳定后再扫。
-    if (hasThinkingText(msg) && !findThinkingContainer(msg)) {
-      return;
-    }
+    // 由 scheduleScan 的防抖保证消息已稳定后再扫描，
+    // 因此这里直接排除思考容器（能定位则排除）并提取正文 command。
     const bodyEl = cloneBody(msg);
     const cmds = extractCommands(bodyEl);
     if (cmds.length) {
