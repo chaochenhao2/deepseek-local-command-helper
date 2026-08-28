@@ -297,9 +297,11 @@
       }
     }
 
-    // 通道A：textContent 正则（覆盖代码块里被转义的配对形式）
+    // 通道A：textContent 正则（覆盖代码块里被转义的配对形式）。
+    // 用 [^<]{1,120} 限定命令内容：不含 `<`（排除正文里“提及 <command> 标签”导致的嵌套/长段误匹配），
+    // 且长度 1~120（正常命令不会太长，避免吞大段文字）。
     const text = bodyEl.textContent || "";
-    const re = /<command>([\s\S]*?)<\/command>/gi;
+    const re = /<command>([^<]{1,120}?)<\/command>/gi;
     let m;
     while ((m = re.exec(text))) add(m[1]);
 
