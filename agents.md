@@ -10,7 +10,7 @@
 
 - GitHub（公开）：https://github.com/chaochenhao2/deepseek-local-command-helper
 - remote 名：`origin`（`git push` / `git pull` 直接可用）
-- 认证：`GH_TOKEN` 用户环境变量（集成型 token，**无法通过 API 创建仓库**，只能推送/读取；如需创建仓库须手动在网页操作或用经典 PAT）
+- 认证：`GH_TOKEN` 用户环境变量（经典 PAT，勾选 `repo` scope，**可创建仓库**、推送/读取均可用）
 
 ## 关键约定与注意点
 
