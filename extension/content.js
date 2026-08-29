@@ -523,9 +523,12 @@
   function scanMessage(msg) {
     if (msg.nodeType !== Node.ELEMENT_NODE) return;
     // 生成锁：若 DeepSeek 仍在生成回复（发送按钮是「停止」图标），
-    // 说明命令可能还没输出完，此时任何提取都可能抓到不完整命令 → 拒绝执行，等下次触发再扫。
+    // 说明命令可能还没输出完，此时任何提取都可能抓到不完整命令 → 拒绝执行。
+    // 按钮图标切换不一定触发 Mutation，因此用固定间隔轮询重试，直到按钮变回「发送」。
     if (isDeepSeekGenerating()) {
-      scheduleScan(msg);
+      setTimeout(() => {
+        if (msg.isConnected) scanMessage(msg);
+      }, 1500);
       return;
     }
     const bodyEl = cloneBody(msg);
