@@ -429,7 +429,7 @@
   function extractCommands(bodyEl, allowUnclosed) {
     const cmds = [];
     const seen = new Set();
-    const MAX = 500;
+    const MAX = 4000; // 长命令上限，容纳超长代码型命令
 
     function add(c) {
       c = normalizeCommand(String(c || "").trim());
@@ -440,10 +440,10 @@
     }
 
     // 通道A：textContent 正则（覆盖被转义成 &lt;command&gt; 的配对形式）。
-    // [^<]{1,500}：命令内容不含 `<`（从而遇到下一个 <command> 标签即停止，避免跨标签吞长段），
-    // 上限放宽到 500 以容纳较长的代码型命令（如 python -c "..."）。
+    // [^<]{1,4000}：命令内容不含 `<`（从而遇到下一个 <command> 标签即停止，避免跨标签吞段），
+    // 上限放宽到 4000 以容纳很长的代码型命令；「长且含中文」判为解释文字丢弃。
     const text = bodyEl.textContent || "";
-    const re = /<command>([^<]{1,500}?)<\/command>/gi;
+    const re = /<command>([^<]{1,4000}?)<\/command>/gi;
     let m;
     while ((m = re.exec(text))) {
       const c = m[1].trim();
