@@ -6,6 +6,12 @@
 
 让用户在 `chat.deepseek.com` 页面上直接执行本机命令。核心是「浏览器扩展 UI + 本地命令服务器」两端，中间通过 `127.0.0.1:8765` 的 HTTP 接口通信。
 
+## 远程仓库
+
+- GitHub（公开）：https://github.com/chaochenhao2/deepseek-local-command-helper
+- remote 名：`origin`（`git push` / `git pull` 直接可用）
+- 认证：`GH_TOKEN` 用户环境变量（集成型 token，**无法通过 API 创建仓库**，只能推送/读取；如需创建仓库须手动在网页操作或用经典 PAT）
+
 ## 关键约定与注意点
 
 1. **通信链路**：content script → background (Service Worker) → localhost HTTP。
