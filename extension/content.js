@@ -228,6 +228,17 @@
     return false;
   }
 
+  // 判断 DeepSeek 是否「正在生成回复」（发送按钮显示「停止」图标而非「发送」箭头）。
+  // 实测：空闲时发送按钮 SVG path 以 "M8.3125 0.98" 开头（向上箭头）；
+  //       生成中则以 "M2 4.88C2 3.68" 开头（圆角方块，即停止）。
+  function isDeepSeekGenerating() {
+    const btn = findDeepSeekSendButton();
+    if (!btn) return false;
+    const path = btn.querySelector("svg path");
+    const d = path ? path.getAttribute("d") : "";
+    return d.indexOf("M2 4.88") === 0;
+  }
+
   // 把命令执行结果格式化为文本，便于填入 DeepSeek 输入框
   function formatResult(command, d) {
     const lines = [];
@@ -511,6 +522,12 @@
   // 扫描单条消息：排除思考 -> 提取 command -> 填充
   function scanMessage(msg) {
     if (msg.nodeType !== Node.ELEMENT_NODE) return;
+    // 生成锁：若 DeepSeek 仍在生成回复（发送按钮是「停止」图标），
+    // 说明命令可能还没输出完，此时任何提取都可能抓到不完整命令 → 拒绝执行，等下次触发再扫。
+    if (isDeepSeekGenerating()) {
+      scheduleScan(msg);
+      return;
+    }
     const bodyEl = cloneBody(msg);
     // 第一遍：只提取「闭合」的 <command>...</command>（可靠，避免流式中途的不完整命令）
     const closedCmds = extractCommands(bodyEl, false);
