@@ -429,7 +429,7 @@
   function extractCommands(bodyEl, allowUnclosed) {
     const cmds = [];
     const seen = new Set();
-    const MAX = 4000; // 长命令上限，容纳超长代码型命令
+    const MAX = 20000; // 长命令上限，容纳超长代码型命令（含大量中文文本的命令）
 
     function add(c) {
       c = normalizeCommand(String(c || "").trim());
@@ -439,17 +439,31 @@
       }
     }
 
-    // 通道A：textContent 正则（覆盖被转义成 &lt;command&gt; 的配对形式）。
-    // [^<]{1,4000}：命令内容不含 `<`（从而遇到下一个 <command> 标签即停止，避免跨标签吞段），
-    // 上限放宽到 4000 以容纳很长的代码型命令；「长且含中文」判为解释文字丢弃。
-    const text = bodyEl.textContent || "";
-    const re = /<command>([^<]{1,4000}?)<\/command>/gi;
-    let m;
-    while ((m = re.exec(text))) {
-      const c = m[1].trim();
-      // 长且含中文 → 判为正文里的解释文字（提及 <command> 标签），丢弃
-      if (c.length > 120 && /[\u4e00-\u9fa5]/.test(c)) continue;
-      add(c);
+    // 从文本中提取「闭合」的 <command>...</command>。
+    // inCodeBlock=true 时（来源是代码块）：不过滤中文——代码块里的一定是真实命令
+    //   （含 python -c "中文" 这类命令）；inCodeBlock=false（普通段落）时才用「长且含中文」过滤，
+    //   避免正文里“提及 <command> 标签”的解释文字被误提取。
+    function extractClosed(text, inCodeBlock) {
+      const re = new RegExp("<command>([^<]{1," + MAX + "}?)</command>", "gi");
+      let m;
+      while ((m = re.exec(text))) {
+        const c = m[1].trim();
+        if (!inCodeBlock && c.length > 60 && /[\u4e00-\u9fa5]/.test(c)) continue;
+        add(c);
+      }
+    }
+
+    // 通道0（首选）：从代码块（<pre>/<code>）内提取——按协议，真实命令放在 command 代码块。
+    const blocks = Array.from(bodyEl.querySelectorAll("pre, code"));
+    const blockTexts = blocks.map((b) => b.textContent || "");
+    for (const bt of blockTexts) {
+      extractClosed(bt, true);
+    }
+
+    // 通道A：从全文 textContent 提取（覆盖代码块外/未被 pre,code 覆盖的场景），带中文长句过滤。
+    if (!cmds.length) {
+      const text = bodyEl.textContent || "";
+      extractClosed(text, false);
     }
 
     // 通道B：raw void 元素（<command> 渲染成空元素，命令内容在其后文本节点）
@@ -466,7 +480,7 @@
     // 通道C：仅在 allowUnclosed 时启用——代码块内容忍未闭合的 <command>（AI 漏写 </command> 时兜底）。
     // 未闭合提取有风险（流式中途会抓到不完整命令），因此只在对消息稳定确认后调用。
     if (allowUnclosed) {
-      bodyEl.querySelectorAll("pre, code").forEach((el) => {
+      for (const el of blocks) {
         const t = el.textContent || "";
         let idx = t.indexOf("<command>");
         while (idx >= 0) {
@@ -481,7 +495,7 @@
           if (next <= idx) break;
           idx = next;
         }
-      });
+      }
     }
 
     return cmds;
